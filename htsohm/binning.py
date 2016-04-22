@@ -1,44 +1,113 @@
-# related third party imports
 import numpy as np
-from sqlalchemy import func
 
-# local application/library specific imports
-from htsohm.runDB_declarative import Base, Material, session
+from runDB_declarative import Base, RunData
+from simulate import CreateSession, GetValue, AddRows, UpdateTable
 
-def select_parents(run_id, children_per_generation, generation):
-    """Use bin-counts to preferentially select a list of rare parents.
 
-    Each bin contains some number of materials, and those bins with the fewers materials represent
-    the most rare structure-property combinations. These rare materials are preferred as parents
-    for new materials, because their children are most likely to display unique properties. This
-    function first calculates a `weight` for each bin, based on the number of constituent
-    materials. These weights affect the probability of selecting a parent from that bin. Once a bin
-    is selected, a parent is randomly-selected from those materials within that bin.
-    """
-    # Each bin is counted...
-    bins_and_counts = session.query(func.count(Material.id), Material.methane_loading_bin,
-        Material.surface_area_bin, Material.void_fraction_bin).filter(
-        Material.run_id == run_id).group_by(Material.methane_loading_bin,
-        Material.surface_area_bin, Material.void_fraction_bin).all()[1:]
-    bins = [{"ML" : i[1], "SA" : i[2], "VF" : i[3]} for i in bins_and_counts]
-    total = sum([i[0] for i in bins_and_counts])
-    # ...then assigned a weight.
-    weights = [i[0] / float(total) for i in bins_and_counts]
+def CountBin(run_ID, ML_bin, SA_bin, VF_bin):
+    
+    s = CreateSession()
+    c0 = s.query(RunData).filter(RunData.run_id == run_ID,              # Not dummy-tested
+                                 RunData.methane_loading_bin == ML_bin,
+                                 RunData.surface_area_bin == SA_bin,
+                                 RunData.void_fraction_bin == VF_bin,
+                                 RunData.dummy_test_result == None).count()
+    c1 = s.query(RunData).filter(RunData.run_id == run_ID,              # Passed dummy-test
+                                 RunData.methane_loading_bin == ML_bin,
+                                 RunData.surface_area_bin == SA_bin,
+                                 RunData.void_fraction_bin == VF_bin,
+                                 RunData.dummy_test_result == 'y').count()
+#    c2 = s.query(RunData).filter(RunData.Run == run_ID,              # Parent failed dummy-test, child not tested
+#                                 RunData.Bin_ML == ML_bin,
+#                                 RunData.Bin_SA == SA_bin,
+#                                 RunData.Bin_VF == VF_bin,
+#                                 RunData.D_pass == 'm').count()
 
-    ############################################################################
-    # A parent-material is selected for each material in the next generation.
-    next_generation = session.query(Material).filter(Material.run_id == run_id,
-        Material.generation == generation).all()
 
-    for child in next_generation:
-        # First, the bin is selected...
-        parent_bin = np.random.choice(bins, p=weights)
-        potential_parents = [i[0] for i in session.query(Material.id).filter(
-            Material.run_id == run_id, Material.methane_loading_bin == parent_bin["ML"],
-            Material.surface_area_bin == parent_bin["SA"],
-            Material.void_fraction_bin == parent_bin["VF"]).all()]
-        # ...then a parent is select from the materials in that bin.
-        parent_id = np.random.choice(potential_parents)
-        child.parent_id = str(parent_id)
+    BinCount = c0 + c1 #+ c2
 
-    return next_generation
+    return BinCount
+
+
+def CountAll(run_ID):
+
+    bins = int(run_ID[-1])
+    AllCounts = np.zeros([bins, bins, bins])
+
+    for i in range(bins):
+        for j in range(bins):
+            for k in range(bins):
+                
+                b_count = CountBin(run_ID, i, j, k)
+                AllCounts[i,j,k] = b_count
+
+    return AllCounts
+
+
+def SelectParents(run_ID, children_per_generation, generation):
+
+    s = CreateSession()
+
+    bins = int(run_ID[-1])
+    counts = CountAll(run_ID)
+    weights = np.zeros([bins, bins, bins])
+
+    for i in range(bins):
+        for j in range(bins):
+            for k in range(bins):    
+                if counts[i,j,k] != 0.:
+                    weights[i,j,k] = counts.sum() / counts[i,j,k]
+    weights = weights / weights.sum()
+
+    w_list = []
+    ID_list = []
+    for i in range(bins):
+        for j in range(bins):
+            w_list = np.concatenate( [w_list, weights[i,j,:]] )
+            for k in range(bins):
+                bin_IDs = []
+                res = s.query(RunData).filter(RunData.run_id == run_ID,
+                                              RunData.methane_loading_bin == i,
+                                              RunData.surface_area_bin == j,
+                                              RunData.void_fraction_bin == k,
+                                              RunData.dummy_test_result == None
+                                              ).all()
+                for item in res:
+                    bin_IDs.append(item.material_id)
+                res = s.query(RunData).filter(RunData.run_id == run_ID,
+                                              RunData.methane_loading_bin == i,
+                                              RunData.surface_area_bin == j,
+                                              RunData.void_fraction_bin == k,
+                                              RunData.dummy_test_result == 'y'
+                                              ).all()
+                for item in res:
+                    bin_IDs.append(item.material_id)
+#                res = s.query(RunData).filter(RunData.Run == run_ID,
+#                                              RunData.Bin_ML == i,
+#                                              RunData.Bin_SA == j,
+#                                              RunData.Bin_VF == k,
+#                                              RunData.D_pass == 'm').all()
+#                for item in res:
+#                    bin_IDs.append(item.Mat)
+                ID_list = ID_list + [bin_IDs]
+
+    first = generation * children_per_generation
+    last = (generation + 1) * children_per_generation
+    new_mat_IDs = np.arange(first, last)                   # IDs for next generation of materials
+
+    for i in new_mat_IDs:
+
+        p_bin = np.random.choice(ID_list, p=w_list)
+        p_ID = np.random.choice(p_bin)                     # Select parent for new material
+
+        _id =GetValue(run_ID, p_ID, "id")
+
+        AddRows(run_ID, [i])
+        data = {'parent_id': _id}
+        UpdateTable(run_ID, i, data)
+   
+
+#def CheckConvergance(run_ID):
+#
+#    counts = CountAll(run_ID)
+       
