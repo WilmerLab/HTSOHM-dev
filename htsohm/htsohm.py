@@ -1,84 +1,82 @@
-# standard library imports
-import os
-import sys
+# /usr/bin/env python
 
-# related third party imports
+import sys
+import os
+import datetime
+
 import numpy as np
 
-# local application/library specific imports
-from htsohm.binning import select_parents
-from htsohm.generate import write_seed_definition_files
-from htsohm.mutate import create_strength_array, recalculate_strength_array
-from htsohm.mutate import write_children_definition_files
-from htsohm.runDB_declarative import Material, session
-from htsohm.simulate import run_all_simulations, dummy_test
-from htsohm.utilities import write_config_file, evaluate_convergence
-
-def init_materials_in_database(run_id, children_per_generation, generation):
-    """initialize materials in database with run_id and generation"""
-    for material in range(children_per_generation):
-        new_material = Material(run_id, generation, 'none')
-        session.add(new_material)
-    session.commit()
-
-def simulate_all_materials(run_id, generation):
-    """simulate methane loading, helium void fraction, and surface area for seed population"""
-    materials = session.query(Material).filter(Material.run_id == run_id, Material.generation == generation).all()
-    for material in materials:
-        run_all_simulations(material.id)
-    session.commit()
-
-def screen_parents(run_id, children_per_generation, generation):
-    """select potential parent-materials and run them in dummy-test"""
-    test_complete = False
-    while not test_complete:
-        next_generation_list = select_parents(run_id, children_per_generation, generation)
-        session.commit()             # parent_ids added to database
-        test_complete = dummy_test(run_id, next_generation_list, generation)
-        session.commit()             # dummy_test_results added to database
-
-def create_next_generation(run_id, generation):
-    """once screened, parent-materials are mutated to create next generation"""
-    if generation == 1:
-        create_strength_array(run_id)                  # create strength-parameter array `run_id`.npy
-    elif generation >= 2:
-        recalculate_strength_array(run_id, generation) # recalculate strength-parameters, as needed
-    write_children_definition_files(run_id, generation)      # create child-materials
+from htsohm import generate as gen
+from htsohm import simulate as sim
+from htsohm import binning as bng
+from htsohm import mutate as mut
 
 
-def seed_generation(run_id, children_per_generation, number_of_atomtypes):
-    generation = 0
-
-    init_materials_in_database(run_id, children_per_generation, generation)
-    write_seed_definition_files(run_id, children_per_generation, number_of_atomtypes)
-    simulate_all_materials(run_id, generation)
-
-
-def next_generation(run_id, children_per_generation, generation):
-    init_materials_in_database(run_id, children_per_generation, generation)
-    screen_parents(run_id, children_per_generation, generation)
-    create_next_generation(run_id, generation)
-    simulate_all_materials(run_id, generation)
-
-def htsohm(children_per_generation,    # number of materials per generation
+def HTSOHM(children_per_generation,    # number of materials per generation
            number_of_atomtypes,        # number of atom-types per material
            strength_0,                 # intial strength parameter
            number_of_bins,             # number of bins for analysis
-           max_generations=20,         # maximum number of generations
-           acceptance_value=0.5):      # desired degree of `convergence`
-    ############################################################################
-    # write run-configuration file
-    run_config = write_config_file(children_per_generation, number_of_atomtypes, strength_0,
-        number_of_bins, max_generations)
-    run_id = run_config["run-id"]
+           max_generations=20):        # maximum number of generations
 
-    convergence = acceptance_value + 1          # initialize convergence with arbitrary value
-    for generation in range(max_generations):
-        while convergence >= acceptance_value:
-            if generation == 0:                     # SEED GENERATION
-                seed_generation(run_id, children_per_generation, number_of_atomtypes)
-                convergence = evaluate_convergence(run_id)
-            elif generation >= 1:                   # FIRST GENERATION, AND ON...
-                next_generation(run_id, children_per_generation, generation)
-                convergence = evaluate_convergence(run_id)
-            print('conergence:\t%s' % convergence)
+    # Start run (see DD.MM.YYYY_HH.MM.SS_CpG.NoA_S0_NoB.txt for parameters)
+    sys.path.insert(0, os.environ['SRC_DIR'])
+
+    start = datetime.datetime.now()
+    run_ID = ( "%s.%s.%s_%s.%s.%s_%s.%s_%s_%s" %
+               (start.day, start.month, start.year,
+                start.hour, start.minute, start.second,
+                children_per_generation, number_of_atomtypes,
+                strength_0,
+                number_of_bins))
+
+    wd = os.environ['HTSOHM_DIR']      # specify working directory
+
+    run_file = open( wd + '/' + run_ID + '.txt', "w")
+    run_file.write( "Date:\t\t\t\t%s:%s:%s\n" % (start.day, start.month,
+                                                 start.year) +
+                    "Time:\t\t\t\t%s:%s:%s\n" % (start.hour, start.minute,
+                                                 start.second) +
+                    "Children per generation:\t%s\n" % (
+                                                 children_per_generation) +
+                    "Number of atom-types:\t\t%s\n" % (number_of_atomtypes) +
+                    "Initial mutation strength:\t%s\n" % (strength_0) +
+                    "Number of bins:\t\t\t%s\n" % (number_of_bins))
+    run_file.close()
+
+
+    # SEED (GENERATION = 0)
+    generation = 0
+    gen.generate(children_per_generation, number_of_atomtypes, run_ID)
+    sim.AddRows( run_ID, GenIDs(generation, children_per_generation) )
+    sim.simulate( run_ID, GenIDs(generation, children_per_generation) )
+
+
+    # FIRST GENERATION
+    generation = 1                     # `Generation` counter
+    # Select parents, add IDs to database...
+    bng.SelectParents(run_ID, children_per_generation, generation)
+    sim.DummyTest(run_ID, generation)
+    
+    mut.FirstS(run_ID, strength_0)     # Create strength-parameter array `run_ID`.npy
+    mut.mutate(run_ID, generation)     # Create first generation of child-materials
+
+    sim.simulate( run_ID, GenIDs(generation, children_per_generation) )
+
+
+    # SECOND GENERATION, AND ON...
+    NextGens = np.arange(2, max_generations)
+    for i in NextGens:
+        generation = i
+
+        bng.SelectParents(run_ID, children_per_generation, generation)
+        sim.DummyTest(run_ID, generation)
+        mut.CalculateS(run_ID, generation)
+        mut.mutate(run_ID, generation)
+        sim.simulate( run_ID, GenIDs(generation, children_per_generation) )
+
+def GenIDs(generation, children_per_generation):
+    first = generation * children_per_generation
+    last = (generation + 1) * children_per_generation
+    GenIDs = np.arange(first, last)
+
+    return GenIDs
