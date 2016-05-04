@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # standard library imports
 import os
 import shutil
@@ -24,6 +25,32 @@ def write_raspa_file(filename, run_id, material_id):
             "            MoleculeDefinition\t\tTraPPE\n" +
             "            SurfaceAreaProbability\t1.0\n" +
             "            CreateNumberOfMolecules\t0\n")
+=======
+import os
+import subprocess
+import shutil
+
+def write_raspa_file(filename, run_id, material_id):
+    with open(filename, "w") as config:
+        config.write( "SimulationType\t\t\tMonteCarlo\n" +
+                        "NumberOfCycles\t\t\t10\n" +             # number of MonteCarlo cycles
+                        "PrintEvery\t\t\t1\n" +
+                        "PrintPropertiesEvery\t\t1\n" +
+                        "\n" +
+                        "Forcefield %s-%s\n" % (run_id, material_id) +
+                        "CutOff 12.8\n" +                        # electrostatic cut-off, Angstroms
+                        "\n" +
+                        "Framework 0\n" +
+                        "FrameworkName %s-%s\n" % (run_id, material_id) +
+                        "UnitCells 1 1 1\n" +
+                        "SurfaceAreaProbeDistance Minimum\n" +
+                        "\n" +
+                        "Component 0 MoleculeName\t\tN2\n" +
+                        "            StartingBead\t\t0\n" +
+                        "            MoleculeDefinition\t\tTraPPE\n" +
+                        "            SurfaceAreaProbability\t1.0\n" +
+                        "            CreateNumberOfMolecules\t0\n" )
+>>>>>>> ec5f68c... separated out simulations into their own files that are independently testable and don't require the database. Handle the database in the run_all_simulations method
 
 def parse_output(output_file):
     results = {}
@@ -40,6 +67,7 @@ def parse_output(output_file):
                 elif count == 2:
                     results['SA_mc'] = line.split()[2]
     
+<<<<<<< HEAD
     print(
         "\nSURFACE AREA\n" +
         "%s\tA^2\n"      % (results['SA_a2']) +
@@ -58,6 +86,24 @@ def run(run_id, material_id):
     output_dir = os.path.join('output', 'Output', 'System_0')
     filename = "output_%s-%s_1.1.1_298.000000_0.data" % (run_id, material_id)
     output_file = os.path.join(output_dir, filename)
+=======
+    print( "\nSURFACE AREA\n" +
+           "%s\tA^2\n"      % (results['SA_a2']) +
+           "%s\tm^2/g\n"    % (results['SA_mg']) +
+           "%s\tm^2/cm^3"   % (results['SA_mc']) )
+    
+    return results
+
+
+
+def run(run_id, material_id):
+    os.makedirs('output', exist_ok=True)
+    filename = 'output/SurfaceArea.input'
+    write_raspa_file(filename, run_id, material_id)
+    subprocess.run(['simulate', './SurfaceArea.input'], check=True, cwd='output')
+
+    output_file = "output/Output/System_0/output_%s-%s_1.1.1_298.000000_0.data" % (run_id, material_id)
+>>>>>>> ec5f68c... separated out simulations into their own files that are independently testable and don't require the database. Handle the database in the run_all_simulations method
     results = parse_output(output_file)
     shutil.rmtree("output")
 
