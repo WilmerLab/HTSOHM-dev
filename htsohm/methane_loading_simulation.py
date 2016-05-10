@@ -89,6 +89,7 @@ def run(run_id, material_id, helium_void_fraction):
     filename = "output_%s-%s_1.1.1_298.000000_3.5e+06.data" % (run_id, material_id)
     filepath = os.path.join(output_dir, filename)
     results = parse_output(filepath)
+
     shutil.rmtree("output")
     
     return results
