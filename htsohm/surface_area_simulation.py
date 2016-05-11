@@ -57,6 +57,7 @@ def run(run_id, material_id):
     output_dir = os.path.join('output', 'Output', 'System_0')
     filename = "output_%s-%s_1.1.1_298.000000_0.data" % (run_id, material_id)
     output_file = os.path.join(output_dir, filename)
+
     results = parse_output(output_file)
     shutil.rmtree("output")
 

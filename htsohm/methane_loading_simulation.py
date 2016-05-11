@@ -72,10 +72,11 @@ def parse_output(output_file):
                 results['host_adsorbate_cou'] = line.split()[7]
             line_counter += 1
     
-    print("\nMETHANE LOADING\tabsolute\texcess\n" +
-            "mol/kg\t\t%s\t%s\n" % (results['ML_a_mk'], results['ML_e_mk']) +
-            "cc/g\t\t%s\t%s\n"   % (results['ML_a_cg'], results['ML_e_cg']) +
-            "cc/cc\t\t%s\t%s\n"  % (results['ML_a_cc'], results['ML_e_cc']) )
+    print(
+        "\nMETHANE LOADING\tabsolute\texcess\n" +
+        "mol/kg\t\t%s\t%s\n" % (results['ML_a_mk'], results['ML_e_mk']) +
+        "cc/g\t\t%s\t%s\n"   % (results['ML_a_cg'], results['ML_e_cg']) +
+        "cc/cc\t\t%s\t%s\n"  % (results['ML_a_cc'], results['ML_e_cc']))
     
     return results
 
