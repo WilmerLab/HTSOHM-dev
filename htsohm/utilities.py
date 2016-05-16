@@ -78,6 +78,16 @@ def evaluate_convergence(run_id):
     variance = sqrt( sum([(i - (sum(bin_counts) / len(bin_counts)))**2 for i in bin_counts]) / len(bin_counts))
     return variance
 
+def random_number_density(number_density_limits, lattice_constants):
+    max_number_density = number_density_limits[1]
+    a = lattice_constants["a"]
+    b = lattice_constants["b"]
+    c = lattice_constants["c"]
+    max_number_of_atoms = int(max_number_density * a * b * c)
+    number_of_atoms = randrange(2, max_number_of_atoms, 1)
+    number_density = round(number_of_atoms / (a * b * c))
+    return number_of_atoms, number_density
+
 def write_cif_file(cif_file, lattice_constants, atom_sites):
     with open(cif_file, "w") as file:
         file.write( 
