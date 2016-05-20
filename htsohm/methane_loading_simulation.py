@@ -1,6 +1,7 @@
+# standard library imports
 import os
-import subprocess
 import shutil
+import subprocess
 
 def write_raspa_file(filename, run_id, material_id, helium_void_fraction ):
     with open(filename, "w") as config:
