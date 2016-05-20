@@ -88,7 +88,7 @@ def random_number_density(number_density_limits, lattice_constants):
     number_density = round(number_of_atoms / (a * b * c))
     return number_of_atoms, number_density
 
-from datetime import datetime
+# related third party imports
 import yaml
 
 def write_config_file(children_per_generation, number_of_atomtypes, strength_0,
