@@ -12,7 +12,7 @@ from htsohm.mutate import create_strength_array, recalculate_strength_array
 from htsohm.mutate import write_children_definition_files
 from htsohm.runDB_declarative import Material, session
 from htsohm.simulate import run_all_simulations, dummy_test
-from htsohm.utilities import write_config_file
+from htsohm.utilities import write_config_file, evaluate_convergence
 
 def init_materials_in_database(run_id, children_per_generation, generation):
     """initialize materials in database with run_id and generation"""
@@ -64,16 +64,21 @@ def htsohm(children_per_generation,    # number of materials per generation
            number_of_atomtypes,        # number of atom-types per material
            strength_0,                 # intial strength parameter
            number_of_bins,             # number of bins for analysis
-           max_generations=20):        # maximum number of generations
-
+           max_generations=20,         # maximum number of generations
+           acceptance_value=0.5):      # desired degree of `convergence`
     ############################################################################
     # write run-configuration file
     run_config = write_config_file(children_per_generation, number_of_atomtypes, strength_0,
         number_of_bins, max_generations)
     run_id = run_config["run-id"]
 
+    convergence = acceptance_value + 1          # initialize convergence with arbitrary value
     for generation in range(max_generations):
-        if generation == 0:                     # SEED GENERATION
-            seed_generation(run_id, children_per_generation, number_of_atomtypes)
-        elif generation >= 1:                   # FIRST GENERATION, AND ON...
-            next_generation(run_id, children_per_generation, generation)
+        while convergence >= acceptance_value:
+            if generation == 0:                     # SEED GENERATION
+                seed_generation(run_id, children_per_generation, number_of_atomtypes)
+                convergence = evaluate_convergence(run_id)
+            elif generation >= 1:                   # FIRST GENERATION, AND ON...
+                next_generation(run_id, children_per_generation, generation)
+                convergence = evaluate_convergence(run_id)
+            print('conergence:\t%s' % convergence)
