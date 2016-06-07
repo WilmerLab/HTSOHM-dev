@@ -70,15 +70,12 @@ def read_config_file(run_id):
     return config
 
 def evaluate_convergence(run_id):
-#    bins = read_config_file(run_id)["bins"]
+    '''Counts number of materials in each bin and returns variance of these counts.'''
     bin_counts = session.query(func.count(Material.id)).filter(Material.run_id == run_id).group_by(
         Material.methane_loading_bin, Material.surface_area_bin, Material.void_fraction_bin
         ).all()
-    print(bin_counts)
-    list(filter((0).__ne__, bin_counts))
-    print(bin_counts)
-    variance = sqrt( sum([(i - (sum(bin_counts / len(bin_counts))))**2 for i in bin_counts]) / (len(bin_counts) - 1))
-    print(variance)
+    bin_counts = [i[0] for i in bin_counts]    # convert SQLAlchemy result to list
+    variance = sqrt( sum([(i - (sum(bin_counts) / len(bin_counts)))**2 for i in bin_counts]) / len(bin_counts))
     return variance
 
 def write_cif_file(cif_file, lattice_constants, atom_sites):
