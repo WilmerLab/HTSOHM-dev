@@ -88,9 +88,6 @@ def random_number_density(number_density_limits, lattice_constants):
     number_density = round(number_of_atoms / (a * b * c))
     return number_of_atoms, number_density
 
-# related third party imports
-import yaml
-
 def write_config_file(children_per_generation, number_of_atomtypes, strength_0,
     number_of_bins, max_generations):
     """Writes run-specific parameters to /config/<run_id>.yaml.
@@ -148,8 +145,16 @@ def read_config_file(run_id):
     config_file = os.path.join(wd, 'config', run_id + '.yaml')
     with open(config_file) as file:
         config = yaml.load(file)
-
     return config
+
+def evaluate_convergence(run_id):
+    '''Counts number of materials in each bin and returns variance of these counts.'''
+    bin_counts = session.query(func.count(Material.id)).filter(Material.run_id == run_id).group_by(
+        Material.methane_loading_bin, Material.surface_area_bin, Material.void_fraction_bin
+        ).all()
+    bin_counts = [i[0] for i in bin_counts]    # convert SQLAlchemy result to list
+    variance = sqrt( sum([(i - (sum(bin_counts) / len(bin_counts)))**2 for i in bin_counts]) / len(bin_counts))
+    return variance
 
 def write_cif_file(cif_file, lattice_constants, atom_sites):
     with open(cif_file, "w") as file:
