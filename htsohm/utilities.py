@@ -1,9 +1,14 @@
 # standard library imports
 from datetime import datetime
 import os
+from math import sqrt
 
 # related third party imports
 import yaml
+from sqlalchemy import func
+
+# local application/library specific imports
+from htsohm.runDB_declarative import Base, Material, session
 
 def write_config_file(children_per_generation, number_of_atomtypes, strength_0,
     number_of_bins, max_generations):
@@ -62,8 +67,19 @@ def read_config_file(run_id):
     config_file = os.path.join(wd, 'config', run_id + '.yaml')
     with open(config_file) as file:
         config = yaml.load(file)
-
     return config
+
+def evaluate_convergence(run_id):
+#    bins = read_config_file(run_id)["bins"]
+    bin_counts = session.query(func.count(Material.id)).filter(Material.run_id == run_id).group_by(
+        Material.methane_loading_bin, Material.surface_area_bin, Material.void_fraction_bin
+        ).all()
+    print(bin_counts)
+    list(filter((0).__ne__, bin_counts))
+    print(bin_counts)
+    variance = sqrt( sum([(i - (sum(bin_counts / len(bin_counts))))**2 for i in bin_counts]) / (len(bin_counts) - 1))
+    print(variance)
+    return variance
 
 def write_cif_file(cif_file, lattice_constants, atom_sites):
     with open(cif_file, "w") as file:
