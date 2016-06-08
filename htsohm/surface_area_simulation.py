@@ -1,6 +1,7 @@
+# standard library imports
 import os
-import subprocess
 import shutil
+import subprocess
 
 def write_raspa_file(filename, run_id, material_id):
     with open(filename, "w") as config:
@@ -38,7 +39,6 @@ def parse_output(output_file):
                     count = count + 1
                 elif count == 2:
                     results['SA_mc'] = line.split()[2]
-    
     print(
         "\nSURFACE AREA\n" +
         "%s\tA^2\n"      % (results['SA_a2']) +
@@ -57,6 +57,7 @@ def run(run_id, material_id):
     output_dir = os.path.join('output', 'Output', 'System_0')
     filename = "output_%s-%s_1.1.1_298.000000_0.data" % (run_id, material_id)
     output_file = os.path.join(output_dir, filename)
+
     results = parse_output(output_file)
     shutil.rmtree("output")
 
