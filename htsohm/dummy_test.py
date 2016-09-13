@@ -34,11 +34,11 @@ def dummy_test(run_id, id):
     initially-calculated value beyond an accpetable tolerance, the material fails the `dummy-test`
     and is flagged, preventing it from being used to generate new materials in the future.
     """
-    tolerance = 0.75
+    tolerance = 3.
     number_of_trials = read_config_file(run_id)['dummy-test-trials']
 
     material = session.query(Material).get(str(id))
-    if material.dummy_test_result != 'pass':
+    if material.dummy_test_result == None:
         print( "\nRe-Simulating %s-%s...\n" % (run_id, id) )
 
         ####################################################################
@@ -80,6 +80,9 @@ def dummy_test(run_id, id):
             material.dummy_test_result = 'pass'        # prevents from future re-testing
             print('%s-%s HAS PASSED PARENT-SCREENING.' % (run_id, id))
             return True
-    else:
+    elif material.dummy_test_result == 'pass':
         print('%s-%s HAD ALREADY PASSED PARENT-SCREENING.' % (run_id, id))
         return True
+    elif material.dummy_test_result == 'fail':
+        print('%s-%s HAS FAILED PARENT-SCREENING.' % (run_id, id))
+        return False 
