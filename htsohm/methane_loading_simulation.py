@@ -2,6 +2,8 @@ import os
 import subprocess
 import shutil
 
+from htsohm.utilities import read_run_parameters_file
+
 def write_raspa_file(filename, run_id, material_id, helium_void_fraction ):
     with open(filename, "w") as config:
         config.write(
@@ -79,7 +81,8 @@ def parse_output(output_file):
     return results
 
 def run(run_id, material_id, helium_void_fraction):
-    output_dir = os.path.join(os.environ['SCRATCH'], 'output_%s' % material_id)
+    path_name = os.environ[read_run_parameters_file(run_id)['simulations-directory']]
+    output_dir = os.path.join(path_name, 'output_%s' % material_id)
     os.makedirs(output_dir, exist_ok=True)
     filename = os.path.join(output_dir, "MethaneLoading.input")
     write_raspa_file(filename, run_id, material_id, helium_void_fraction)

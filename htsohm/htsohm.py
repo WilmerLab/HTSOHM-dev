@@ -13,8 +13,8 @@ from htsohm.mutate import write_child_definition_files
 from htsohm.runDB_declarative import Material, session
 from htsohm.simulate import run_all_simulations
 from htsohm.dummy_test import screen_parent
-from htsohm.utilities import write_config_file, evaluate_convergence, save_convergence
-from htsohm.utilities import read_config_file
+from htsohm.utilities import write_run_parameters_file, evaluate_convergence, save_convergence
+from htsohm.utilities import read_run_parameters_file, load_input
 
 def simulate_all_materials(run_id, generation):
     """simulate methane loading, helium void fraction, and surface area for seed population"""
@@ -48,8 +48,9 @@ def queue_all_materials(run_id, generation, queue):
         queue.enqueue(hpc_job_run_all_simulations, material.id, timeout=60*60)
 
 def create_next_generation(run_id, generation):
-    children_per_generation = read_config_file(run_id)['children-per-generation']
+    children_per_generation = read_run_parameters_file(run_id)['children-per-generation']
     for i in range(children_per_generation):
+        print(i)
         parent_id = screen_parent(run_id)
         write_child_definition_files(run_id, generation, parent_id)
     session.commit()
@@ -65,9 +66,9 @@ def hpc_job_create_material(run_id, generation):
 
 def queue_create_next_generation(run_id, generation, queue):
     """same as create_next_generation, except queues the jobs in the job server"""
-    children_per_generation = read_config_file(run_id)['children-per-generation']
+    children_per_generation = read_run_parameters_file(run_id)['children-per-generation']
     for i in range(children_per_generation):
-        trials = read_config_file(run_id)['dummy-test-trials']
+        trials = read_run_parameters_file(run_id)['number-of-dummy-test-trials']
         queue.enqueue(hpc_job_create_material, run_id, generation, timeout=trials*60*60)
 
 def seed_generation(run_id, children_per_generation, number_of_atomtypes):
@@ -81,15 +82,13 @@ def update_strength_array(run_id, generation):
     elif generation >= 2:
         recalculate_strength_array(run_id, generation)
 
-def htsohm(children_per_generation,    # number of materials per generation
-           number_of_atomtypes,        # number of atom-types per material
-           strength_0,                 # intial strength parameter
-           number_of_bins,             # number of bins for analysis
-           max_generations=20,         # maximum number of generations
-           dummy_test_trials=1,        # number of re-simulations for dummy-test
-           acceptance_value=-0.005):      # desired degree of `convergence`
-    run_id = write_config_file(children_per_generation, number_of_atomtypes, strength_0,
-        number_of_bins, max_generations, dummy_test_trials, acceptance_value)["run-id"]
+def htsohm(input_file):
+    run_parameters = load_input(input_file)
+    run_id = write_run_parameters_file(run_parameters)['run-id']
+    children_per_generation  = run_parameters['children-per-generation']
+    number_of_atomtypes      = run_parameters['number-of-atom-types']
+    max_generations          = run_parameters['maximum-number-of-generations']
+    acceptance_value         = run_parameters['convergence-cutoff-criteria']
     for generation in range(max_generations):
             if generation == 0:                     # SEED GENERATION
                 seed_generation(run_id, children_per_generation, number_of_atomtypes)

@@ -10,66 +10,52 @@ from sqlalchemy import func
 # local application/library specific imports
 from htsohm.runDB_declarative import Base, Material, session
 
-def write_config_file(children_per_generation, number_of_atomtypes, strength_0,
-    number_of_bins, max_generations, dummy_test_trials, acceptance_value):
+def load_input(file_name):
+    """Reads input file.
+
+    Input files must be in .yaml format, see input_file.sample.yaml. The
+    following must be specified:
+        PARAMETER                           DATA-TYPE       RANGE
+        'children-per-generation'           int             1 - inf
+        'number-of-atom-types'              int             1 - inf
+        'initial-mutation-strength'         float           0 - 1
+        'number-of-convergence-bins'        int             1 - inf
+        'maximum-number-of-generations'     int             1 - inf
+        'number-of-dummy-test-trials'       inf             1 - inf
+        'dummy-test-tolerance'              float           0 - inf
+        'convergence-cutoff-criteria'       float           0 - inf
+        'number-density-limits'             float(2)        0 - inf
+        'lattice-constant-limits'           float(2)        0 - inf
+        'epsilon-limits'                    float(2)        0 - inf
+        'sigma-limits'                      float(2)        0 - inf
+        'charge-limit'                      float(2)        0 - inf
+        'elemental-charge'                  float           0 - inf
+        'simulations-directory'             str             HTSOHM_DIR, SCRATCH
+    """
+    with open(file_name) as file:
+        run_parameters = yaml.load(file)
+    return run_parameters
+
+def write_run_parameters_file(run_parameters):
     """Writes run-specific parameters to /config/<run_id>.yaml.
 
     This function writes run-specific parameters to a configuration file that is loaded/written
     at different stages throughout the overall HTSOHM routine.
     """
     run_id = datetime.now().isoformat()
+    run_parameters.update({'run-id' : run_id})
     wd = os.environ['HTSOHM_DIR']      # specify working directory
-    config_file = os.path.join(wd, 'config', run_id + '_conf.yaml')
+    run_parameters_file = os.path.join(wd, 'config', run_id + '_parameters.yaml')
+    with open(run_parameters_file, "w") as file:
+        yaml.dump(run_parameters, file, default_flow_style=False)
+    return run_parameters
 
-    run_config = {
-        "run-id" : run_id,
-        "children-per-generation" : children_per_generation,
-        "number-of-atom-types" : number_of_atomtypes,
-        "initial-mutation-strength" : strength_0,
-        "number-of-bins" : number_of_bins,
-        "max-number-of-generations" : max_generations,
-        "dummy-test-trials" : dummy_test_trials,
-        "acceptance-value" : acceptance_value
-    }
-
-    with open(config_file, "w") as file:
-        yaml.dump(run_config, file, default_flow_style=False)
-
-    return run_config
-
-def update_config_file(run_id):
-    """ Write material-parameters to run-configuration file.
-
-    The parameters written by this function define the limits for different values written to the
-    structure and forcefield definition files for RASPA. Among the limits defined here are crystal
-    lattice constants, number density, partial atomic charges, and Lennard-Jones parameters (sigma
-    and epsilon).
-    """
-    wd = os.environ['HTSOHM_DIR']      # specify $HTSOHM_DIR as working directory
-    config_file = os.path.join(wd, 'config', run_id + '_conf.yaml')
-    with open(config_file) as file:
-        run_config = yaml.load(file)
-
-    run_config.update({
-        "number-density-limits"     : [0.0000149, 0.02122],
-        "lattice-constant-limits"   : [25.6, 51.2],
-        "epsilon-limits"            : [1.258, 513.264],
-        "sigma-limits"              : [1.052, 6.549],
-        "charge-limit"              : 0.,
-        "elemental-charge"          : 0.0001
-    })
-
-    with open(config_file, "w") as file:
-        yaml.dump(run_config, file, default_flow_style=False)
-
-    return run_config
-
-def read_config_file(run_id):
+def read_run_parameters_file(run_id):
     wd = os.environ['HTSOHM_DIR']
-    config_file = os.path.join(wd, 'config', run_id + '_conf.yaml')
-    with open(config_file) as file:
-        config = yaml.load(file)
-    return config
+    parameters_file = os.path.join(wd, 'config', run_id + '_parameters.yaml')
+    with open(parameters_file) as file:
+        run_parameters = yaml.load(file)
+    return run_parameters
 
 def evaluate_convergence(run_id):
     '''Counts number of materials in each bin and returns variance of these counts.'''

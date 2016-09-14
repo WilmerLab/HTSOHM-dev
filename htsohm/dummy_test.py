@@ -9,12 +9,11 @@ import numpy as np
 
 # local application/library specific imports
 from htsohm.binning import select_parent
-from htsohm.utilities import read_config_file
+from htsohm.utilities import read_run_parameters_file
 from htsohm import helium_void_fraction_simulation
 from htsohm import methane_loading_simulation
 from htsohm import surface_area_simulation
 from htsohm.runDB_declarative import Material, session
-#from htsohm.utilities import read_config_file
 
 def screen_parent(run_id):
     test_complete = False
@@ -34,10 +33,12 @@ def dummy_test(run_id, id):
     initially-calculated value beyond an accpetable tolerance, the material fails the `dummy-test`
     and is flagged, preventing it from being used to generate new materials in the future.
     """
-    tolerance = 3.
-    number_of_trials = read_config_file(run_id)['dummy-test-trials']
+    run_parameters = read_run_parameters_file(run_id)
+    number_of_trials  = run_parameters['number-of-dummy-test-trials']
+    tolerance         = run_parameters['dummy-test-tolerance']
 
     material = session.query(Material).get(str(id))
+    print(material.dummy_test_result)
     if material.dummy_test_result == None:
         print( "\nRe-Simulating %s-%s...\n" % (run_id, id) )
 
