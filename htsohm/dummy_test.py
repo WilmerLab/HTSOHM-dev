@@ -39,7 +39,7 @@ def dummy_test(run_id, id):
 
     material = session.query(Material).get(str(id))
     print(material.dummy_test_result)
-    if material.dummy_test_result == None:
+    if material.dummy_test_result == 'none':
         print( "\nRe-Simulating %s-%s...\n" % (run_id, id) )
 
         ####################################################################
