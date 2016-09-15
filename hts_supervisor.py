@@ -59,16 +59,11 @@ def unfinished_materials(generation):
 def manage_run_results(job_id):
     return Job.fetch(job_id, connection=redis_conn).result
 
-if len(sys.argv) > 1:
+if len(sys.argv) == 2:
     # we were passed new parameters, so we're starting a new run!
     prior_manage_job_id = None
     generation = 0
-    run_id = start_run(
-        int(sys.argv[1]),
-        int(sys.argv[2]),
-        float(sys.argv[3]),
-        int(sys.argv[4])
-    )
+    run_id = start_run(int(sys.argv[1]))
     print("[%s] starting new run with passed parameters" % timestamp())
 else:
     # no parameters were passed, so we'll attempt to restart a previous run
