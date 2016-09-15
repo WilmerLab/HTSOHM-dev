@@ -40,47 +40,52 @@ def dummy_test(run_id, id):
     material = session.query(Material).get(str(id))
     print(material.dummy_test_result)
     if material.dummy_test_result == 'none':
-        print( "\nRe-Simulating %s-%s...\n" % (run_id, id) )
+        try:
+            print( "\nRe-Simulating %s-%s...\n" % (run_id, id) )
 
-        ####################################################################
-        # resimulate helium void fraction(s)
-        void_fractions = []
-        for j in range(number_of_trials):
-            vf_result = helium_void_fraction_simulation.run(run_id, id)
-            void_fractions.append(float(vf_result["VF_val"]))
+            ####################################################################
+            # resimulate helium void fraction(s)
+            void_fractions = []
+            for j in range(number_of_trials):
+                vf_result = helium_void_fraction_simulation.run(run_id, id)
+                void_fractions.append(float(vf_result["VF_val"]))
 
-        ####################################################################
-        # resimulate methane loading(s)
-        methane_loadings = []
-        for j in range(number_of_trials):
-            ml_result = methane_loading_simulation.run(run_id, id, np.mean(void_fractions))
-            methane_loadings.append(float(ml_result["ML_a_cc"]))
+            ####################################################################
+            # resimulate methane loading(s)
+            methane_loadings = []
+            for j in range(number_of_trials):
+                ml_result = methane_loading_simulation.run(run_id, id, np.mean(void_fractions))
+                methane_loadings.append(float(ml_result["ML_a_cc"]))
 
-        ####################################################################
-        # resimulate surface area(s)
-        surface_areas = []
-        for j in range(number_of_trials):
-            sa_result = surface_area_simulation.run(run_id, id)
-            surface_areas.append( float(sa_result["SA_mc"]) )
+            ####################################################################
+            # resimulate surface area(s)
+            surface_areas = []
+            for j in range(number_of_trials):
+                sa_result = surface_area_simulation.run(run_id, id)
+                surface_areas.append( float(sa_result["SA_mc"]) )
 
-        ####################################################################
-        # compare average of resimulated values to originals
-        material = session.query(Material).get(id)
-        ml_o = material.absolute_volumetric_loading    # initally-calculated values
-        sa_o = material.volumetric_surface_area
-        vf_o = material.helium_void_fraction
-        if (
-            abs(np.mean(methane_loadings) - ml_o) >= tolerance * ml_o or
-            abs(np.mean(surface_areas) - sa_o) >= tolerance * sa_o or
-            abs(np.mean(void_fractions) - vf_o) >= tolerance * vf_o
-        ):
-            material.dummy_test_result = 'fail'        # flag failed material
-            print('%s-%s HAS FAILED PARENT-SCREENING.' % (run_id, id))
-            return False        
-        else:
-            material.dummy_test_result = 'pass'        # prevents from future re-testing
-            print('%s-%s HAS PASSED PARENT-SCREENING.' % (run_id, id))
-            return True
+            ####################################################################
+            # compare average of resimulated values to originals
+            material = session.query(Material).get(id)
+            ml_o = material.absolute_volumetric_loading    # initally-calculated values
+            sa_o = material.volumetric_surface_area
+            vf_o = material.helium_void_fraction
+            if (
+                abs(np.mean(methane_loadings) - ml_o) >= tolerance * ml_o or
+                abs(np.mean(surface_areas) - sa_o) >= tolerance * sa_o or
+                abs(np.mean(void_fractions) - vf_o) >= tolerance * vf_o
+            ):
+                material.dummy_test_result = 'fail'        # flag failed material
+                print('%s-%s HAS FAILED PARENT-SCREENING.' % (run_id, id))
+                return False        
+            else:
+                material.dummy_test_result = 'pass'        # prevents from future re-testing
+                print('%s-%s HAS PASSED PARENT-SCREENING.' % (run_id, id))
+                return True
+        except TypeError:
+            print('ERROR: COULD NOT OBTAIN ALL DATA FOR Material.id = %s' % id)
+            material.dummy_test_result = 'fail'
+            return False
     elif material.dummy_test_result == 'pass':
         print('%s-%s HAD ALREADY PASSED PARENT-SCREENING.' % (run_id, id))
         return True
