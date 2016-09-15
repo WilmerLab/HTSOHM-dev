@@ -63,7 +63,7 @@ if len(sys.argv) == 2:
     # we were passed new parameters, so we're starting a new run!
     prior_manage_job_id = None
     generation = 0
-    run_id = start_run(int(sys.argv[1]))
+    run_id = start_run(str(sys.argv[1]))
     print("[%s] starting new run with passed parameters" % timestamp())
 else:
     # no parameters were passed, so we'll attempt to restart a previous run
