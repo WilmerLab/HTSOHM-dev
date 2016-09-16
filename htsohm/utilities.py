@@ -15,22 +15,26 @@ def load_input(file_name):
 
     Input files must be in .yaml format, see input_file.sample.yaml. The
     following must be specified:
-        PARAMETER                           DATA-TYPE       RANGE
-        'children-per-generation'           int             1 - inf
-        'number-of-atom-types'              int             1 - inf
-        'initial-mutation-strength'         float           0 - 1
-        'number-of-convergence-bins'        int             1 - inf
-        'maximum-number-of-generations'     int             1 - inf
-        'number-of-dummy-test-trials'       inf             1 - inf
-        'dummy-test-tolerance'              float           0 - inf
-        'convergence-cutoff-criteria'       float           0 - inf
-        'number-density-limits'             float(2)        0 - inf
-        'lattice-constant-limits'           float(2)        0 - inf
-        'epsilon-limits'                    float(2)        0 - inf
-        'sigma-limits'                      float(2)        0 - inf
-        'charge-limit'                      float(2)        0 - inf
-        'elemental-charge'                  float           0 - inf
-        'simulations-directory'             str             HTSOHM_DIR, SCRATCH
+        PARAMETER                               DATA-TYPE        RANGE
+        'children-per-generation'               int             1 - inf
+        'number-of-atom-types'                  int             1 - inf
+        'initial-mutation-strength'             float           0 - 1
+        'helium-void-fraction-simulation-cycles int             1 - inf
+        'number-of-convergence-bins'            int             1 - inf
+        'maximum-number-of-generations'         int             1 - inf
+        'methane-loading-initialization-cycles  int             1 - inf
+        'methane-loading-simulation-cycles      int             1 - inf
+        'number-of-dummy-test-trials'           inf             1 - inf
+        'dummy-test-tolerance'                  float           0 - inf
+        'convergence-cutoff-criteria'           float           0 - inf
+        'number-density-limits'                 float(2)        0 - inf
+        'lattice-constant-limits'               float(2)        0 - inf
+        'epsilon-limits'                        float(2)        0 - inf
+        'sigma-limits'                          float(2)        0 - inf
+        'charge-limit'                          float(2)        0 - inf
+        'elemental-charge'                      float           0 - inf
+        'simulations-directory'                 str             HTSOHM_DIR, SCRATCH
+        'surface-area-simulation-cycles'        int             0 - inf
     """
     with open(file_name) as file:
         run_parameters = yaml.load(file)
