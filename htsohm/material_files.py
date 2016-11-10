@@ -32,7 +32,7 @@ def random_number_density(number_density_limits, lattice_constants):
     max_atoms = int(max_ND * v)
     if min_atoms < 2:
         min_atoms = 2
-    atoms = randrange(min_atoms, max_number_of_atoms, 1)
+    atoms = randrange(min_atoms, max_atoms, 1)
     return atoms
 
 def write_seed_definition_files(run_id, number_of_atomtypes):
