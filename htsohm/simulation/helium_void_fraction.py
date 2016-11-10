@@ -1,6 +1,9 @@
+import sys
 import os
 import subprocess
 import shutil
+from datetime import datetime
+from uuid import uuid4
 
 import htsohm
 from htsohm import config
@@ -33,12 +36,8 @@ def parse_output(output_file):
         for line in origin:
             if not "Average Widom Rosenbluth-weight:" in line:
                 continue
-            try:
-                results['vf_helium_void_fraction'] = float(line.split()[4])
-            except IndexError:
-                print()
-    print("\nVOID FRACTION :   %s\n" % (results['vf_helium_void_fraction']))
-
+            results['vf_helium_void_fraction'] = float(line.split()[4])
+        print("\nVOID FRACTION :   %s\n" % (results['vf_helium_void_fraction']))
     return results
 
 def run(run_id, material_id):
@@ -50,15 +49,26 @@ def run(run_id, material_id):
         path = os.environ['SCRATCH']
     else:
         print('OUTPUT DIRECTORY NOT FOUND.')
-    output_dir = os.path.join(path, 'output_%s' % material_id)
+    output_dir = os.path.join(path, 'output_%s_%s' % (material_id, uuid4()))
+    print("Output directory :\t%s" % output_dir)
     os.makedirs(output_dir, exist_ok=True)
     filename = os.path.join(output_dir, "VoidFraction.input")
     write_raspa_file(filename, run_id, material_id)
-    subprocess.run(['simulate', './VoidFraction.input'], check=True, cwd=output_dir)
-
-    filename = "output_%s-%s_1.1.1_298.000000_0.data" % (run_id, material_id)
-    output_file = os.path.join(output_dir, 'Output', 'System_0', filename)
-    results = parse_output(output_file)
-    shutil.rmtree(output_dir, ignore_errors=True)
+    while True:
+        try:
+            print("Date :\t%s" % datetime.now().date().isoformat())
+            print("Time :\t%s" % datetime.now().time().isoformat())
+            print("Calculating void fraction of %s-%s..." % (run_id, material_id))
+            subprocess.run(['simulate', './VoidFraction.input'], check=True, cwd=output_dir)
+            filename = "output_%s-%s_1.1.1_298.000000_0.data" % (run_id, material_id)
+            output_file = os.path.join(output_dir, 'Output', 'System_0', filename)
+            results = parse_output(output_file)
+            shutil.rmtree(output_dir, ignore_errors=True)
+            sys.stdout.flush()
+        except (FileNotFoundError, IndexError, KeyError) as err:
+            print(err)
+            print(err.args)
+            continue
+        break
 
     return results

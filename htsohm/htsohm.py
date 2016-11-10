@@ -1,4 +1,6 @@
+import sys
 from math import sqrt
+from datetime import datetime
 
 import numpy as np
 from sqlalchemy.sql import func, or_
@@ -113,8 +115,6 @@ def run_all_simulations(material):
                                     *config['void_fraction_limits'],
                                     config['number_of_convergence_bins'])
 
-
-
 def retest(m_orig, retests, tolerance):
     """Recalculate material structure-properties to prevent statistical errors.
 
@@ -141,6 +141,7 @@ def retest(m_orig, retests, tolerance):
 
         if m_orig.retest_num == retests:
             m_orig.retest_passed = m.calculate_retest_result(tolerance)
+
     else:
         pass
         # otherwise our test is extra / redundant and we don't save it
@@ -190,7 +191,7 @@ def calculate_mutation_strength(run_id, generation, parent):
         except FlushError as e:
             print("Somebody beat us to saving a row with this generation. That's ok!")
             # it's ok b/c this calculation should always yield the exact same result!
-
+    sys.stdout.flush()
     return mutation_strength.strength
 
 def evaluate_convergence(run_id, generation):
@@ -207,6 +208,7 @@ def evaluate_convergence(run_id, generation):
     bin_counts = [i[0] for i in bin_counts]    # convert SQLAlchemy result to list
     variance = sqrt( sum([(i - (sum(bin_counts) / len(bin_counts)))**2 for i in bin_counts]) / len(bin_counts))
     print('\nCONVERGENCE:\t%s\n' % variance)
+    sys.stdout.flush()
     return variance <= config['convergence_cutoff_criteria']
 
 def worker_run_loop(run_id):
@@ -230,6 +232,8 @@ def worker_run_loop(run_id):
                 # run retests until we've run enough
                 while parent.retest_passed is None:
                     print("running retest...")
+                    print("Date :\t%s" % datetime.now().date().isoformat())
+                    print("Time :\t%s" % datetime.now().time().isoformat())
                     retest(parent, config['retests']['number'], config['retests']['tolerance'])
                     session.refresh(parent)
 
@@ -252,5 +256,6 @@ def worker_run_loop(run_id):
                 # session.delete(material)
                 pass
             session.commit()
+            sys.stdout.flush()
         gen += 1
         converged = evaluate_convergence(run_id, gen)
