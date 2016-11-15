@@ -1,4 +1,6 @@
+import sys
 from math import sqrt
+from datetime import datetime
 
 import numpy as np
 from sqlalchemy.sql import func, or_
@@ -10,17 +12,49 @@ from htsohm.material_files import write_seed_definition_files, write_child_defin
 from htsohm import simulation
 
 def materials_in_generation(run_id, generation):
+    """Count number of materials in a generation.
+
+    Args:
+        run_id (str): identification string for run.
+        generation (int): iteration in overall bin-mutate-simulate rountine.
+
+    Returns:
+        Number(int) of materials in a particular generation that are present in
+        the database (the final step in bin-mutate-simulate routine).
+
+    """
     return session.query(Material).filter(
         Material.run_id == run_id,
         Material.generation == generation
     ).count()
 
 def last_generation(run_id):
+    """Finds latest generation present in database.
+
+    Args:
+        run_id (str): identification string for run.
+
+    Returns:
+        Last generation(int) to be included in database.
+
+    """
     return session.query(func.max(Material.generation)).filter(
         Material.run_id == run_id,
     )[0][0]
 
 def calc_bin(value, bound_min, bound_max, bins):
+    """Find bin in parameter range.
+
+    Args:
+        value (float): some value, the result of a simulation.
+        bound_min (float): lower limit, defining the parameter-space.
+        bound_max (float): upper limit, defining the parameter-space.
+        bins (int): number of bins used to subdivide parameter-space.
+
+    Returns:
+        Bin(int) corresponding to the input-value.
+
+    """
     step = (bound_max - bound_min) / bins
     assigned_bin = (value - bound_min) // step
     assigned_bin = min(assigned_bin, bins-1)
@@ -28,16 +62,23 @@ def calc_bin(value, bound_min, bound_max, bins):
     return int(assigned_bin)
 
 def select_parent(run_id, max_generation, generation_limit):
-    """Use bin-counts to preferentially select a list of rare parents.
+    """Use bin-counts to preferentially select a list of 'rare' parents.
 
-    Each bin contains some number of materials, and those bins with the fewers materials represent
-    the most rare structure-property combinations. These rare materials are preferred as parents
-    for new materials, because their children are most likely to display unique properties. This
-    function first calculates a `weight` for each bin, based on the number of constituent
-    materials. These weights affect the probability of selecting a parent from that bin. Once a bin
-    is selected, a parent is randomly-selected from those materials within that bin.
+    Args:
+        run_id (str): identification string for run.
+        max_generation (int): latest generation to include when counting number
+            of materials ub each bin.
+        generation_limit (int): number of materials to query in each generation
+            (as materials are added to database they are assigned an index
+            within the generation to bound the number of materials in each
+            generation).
+
+    Returns:
+        The material id(int) corresponding to some parent-material selected
+        from database with a bias favoring materials in bins with the lowest
+        counts.
+
     """
-
     # Each bin is counted...
     bins_and_counts = session \
         .query(
@@ -79,11 +120,15 @@ def select_parent(run_id, max_generation, generation_limit):
 def run_all_simulations(material):
     """Simulate helium void fraction, methane loading, and surface area.
 
-    For a given material (id) three simulations are run using RASPA. First a helium void fraction
-    is calculated, and then it is used to run a methane loading simulation (void fraction needed to
-    calculate excess v. absolute loading). Finally, a surface area is calculated and the material is
-    assigned to its appropriate bin."""
+    Args:
+        material (sqlalchemy.orm.query.Query): material to be analyzed.
 
+    Returns:
+        Adds simulated data for helium void fraction, methane loading, heat of
+        adsorption, surface area, and corresponding bins to row in database
+        corresponding to the input-material.
+        
+    """
     ############################################################################
     # run helium void fraction simulation
     results = simulation.helium_void_fraction.run(material.run_id, material.uuid)
@@ -113,20 +158,20 @@ def run_all_simulations(material):
                                     *config['void_fraction_limits'],
                                     config['number_of_convergence_bins'])
 
-
-
 def retest(m_orig, retests, tolerance):
-    """Recalculate material structure-properties to prevent statistical errors.
+    """Reproduce simulations  to prevent statistical errors.
 
-    Because methane loading, surface area, and helium void fractions are calculated using
-    statistical methods (namely grand canonic Monte Carlo simulations) they are susceptible
-    to statistical errors. To mitigate this, after a material has been selected as a potential
-    parent, it's combination of structure-properties is resimulated some number of times and
-    compared to the initally-calculated material. If the resimulated values differ from the
-    initially-calculated value beyond an accpetable tolerance, the material fails the `dummy-test`
-    and is flagged, preventing it from being used to generate new materials in the future.
+    Args:
+        m_orig (sqlalchemy.orm.query.Query): material to retest.
+        retests (int): number of times to reproduce each simulation.
+        tolerance (float): acceptance criteria as percent deviation from
+            originally calculated value.
+
+    Returns:
+        Queries database to determine if there are remained retests to  be run.
+        Updates row in database with total number of retests and results.
+
     """
-
     m = m_orig.clone()
     run_all_simulations(m)
 
@@ -141,30 +186,31 @@ def retest(m_orig, retests, tolerance):
 
         if m_orig.retest_num == retests:
             m_orig.retest_passed = m.calculate_retest_result(tolerance)
+
     else:
         pass
         # otherwise our test is extra / redundant and we don't save it
 
     session.commit()
 
-def calculate_mutation_strength(run_id, generation, parent):
-    """Retrieve the latest mutation_strength for the parent, or calculate it if missing.
+def mutate(run_id, generation, parent):
+    """Query mutation_strength for bin and adjust as necessary.
 
-    In the event that a particular bin contains parents whose children exhibit radically
-    divergent properties, the strength parameter for the bin is modified. In order to determine
-    which bins to adjust, the script refers to the distribution of children in the previous
-    generation which share a common parent. The criteria follows:
-     ________________________________________________________________
-     - if none of the children share  |  halve strength parameter
-       the parent's bin               |
-     - if the fraction of children in |
-       the parent bin is < 10%        |
-     _________________________________|_____________________________
-     - if the fraction of children in |  double strength parameter
-       the parent bin is > 50%        |
-     _________________________________|_____________________________
+    Args:
+        run_id (str): identification string for run.
+        generation (int): iteration in bin-mutate-simulate routine.
+        parent (sqlalchemy.orm.query.Query): parent-material corresponding to
+            the bin being queried.
+
+    Returns:
+        mutation_strength.strength (float): mutation strength to be used for
+        parents in the bin being queried. If the fraction of children from
+        previous generation which populate the SAME bin as their parent is LESS
+        THAN 10% then the mutation strength is REDUCED BY HALF. If the fraction
+        of these children populating the SAME bin as their parent is GREATER
+        THAN 50% then the mutation strength is INCREASED BY 200%.
+
     """
-
     mutation_strength_key = [run_id, generation] + parent.bin
     mutation_strength = session.query(MutationStrength).get(mutation_strength_key)
 
@@ -190,11 +236,20 @@ def calculate_mutation_strength(run_id, generation, parent):
         except FlushError as e:
             print("Somebody beat us to saving a row with this generation. That's ok!")
             # it's ok b/c this calculation should always yield the exact same result!
-
+    sys.stdout.flush()
     return mutation_strength.strength
 
 def evaluate_convergence(run_id, generation):
-    '''Counts number of materials in each bin and returns variance of these counts.'''
+    '''Determines convergence by calculating variance of bin-counts.
+    
+    Args:
+        run_id (str): identification string for run.
+        generation (int): iteration in bin-mutate-simulate routine.
+
+    Returns:
+        bool: True if variance is less than or equal to cutt-off criteria (so
+            method will continue running).
+    '''
     bin_counts = session \
         .query(func.count(Material.id)) \
         .filter(
@@ -207,9 +262,20 @@ def evaluate_convergence(run_id, generation):
     bin_counts = [i[0] for i in bin_counts]    # convert SQLAlchemy result to list
     variance = sqrt( sum([(i - (sum(bin_counts) / len(bin_counts)))**2 for i in bin_counts]) / len(bin_counts))
     print('\nCONVERGENCE:\t%s\n' % variance)
+    sys.stdout.flush()
     return variance <= config['convergence_cutoff_criteria']
 
 def worker_run_loop(run_id):
+    """
+    Args:
+        run_id (str): identification string for run.
+
+    Returns:
+        Writes seed generation and simulates properties, then manages overall
+        bin-mutate-simualte routine until convergence cutt-off or maximum
+        number of generations is reached.
+
+    """
     gen = last_generation(run_id) or 0
 
     converged = False
@@ -230,6 +296,8 @@ def worker_run_loop(run_id):
                 # run retests until we've run enough
                 while parent.retest_passed is None:
                     print("running retest...")
+                    print("Date :\t%s" % datetime.now().date().isoformat())
+                    print("Time :\t%s" % datetime.now().time().isoformat())
                     retest(parent, config['retests']['number'], config['retests']['tolerance'])
                     session.refresh(parent)
 
@@ -237,7 +305,7 @@ def worker_run_loop(run_id):
                     print("parent failed retest. restarting with parent selection.")
                     continue
 
-                mutation_strength = calculate_mutation_strength(run_id, gen, parent)
+                mutation_strength = mutate(run_id, gen, parent)
                 material = write_child_definition_files(run_id, parent_id, gen, mutation_strength)
 
             run_all_simulations(material)
@@ -252,5 +320,6 @@ def worker_run_loop(run_id):
                 # session.delete(material)
                 pass
             session.commit()
+            sys.stdout.flush()
         gen += 1
         converged = evaluate_convergence(run_id, gen)

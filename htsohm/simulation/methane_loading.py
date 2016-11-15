@@ -1,11 +1,25 @@
+import sys
 import os
 import subprocess
 import shutil
+from datetime import datetime
+from uuid import uuid4
 
 import htsohm
 from htsohm import config
 
 def write_raspa_file(filename, run_id, material_id, helium_void_fraction ):
+    """Writes RASPA input file for simulating methane loading.
+
+    Args:
+        filename (str): path to input file.
+        run_id (str): identification string for run.
+        material_id (str): uuid for material.
+
+    Returns:
+        Writes RASPA input-file.
+
+    """
     simulation_cycles      = config['methane_loading']['simulation_cycles']
     initialization_cycles  = config['methane_loading']['initialization_cycles']
     with open(filename, "w") as raspa_input_file:
@@ -33,8 +47,19 @@ def write_raspa_file(filename, run_id, material_id, helium_void_fraction ):
             "            SwapProbability\t\t1.0\n" +
             "            CreateNumberOfMolecules\t0\n")
 
-
 def parse_output(output_file):
+    """Parse output file for void fraction data.
+
+    Args:
+        output_file (str): path to simulation output file.
+
+    Returns:
+        results (dict): absolute and excess molar, gravimetric, and volumetric
+            methane loadings, as well as energy of average, van der Waals, and
+            Coulombic host-host, host-adsorbate, and adsorbate-adsorbate
+            interactions.
+
+    """
     results = {}
     with open(output_file) as origin:
         line_counter = 1
@@ -66,25 +91,41 @@ def parse_output(output_file):
                 results['ml_host_host_avg'] = float(line.split()[1])
                 results['ml_host_host_vdw'] = float(line.split()[5])
                 results['ml_host_host_cou'] = float(line.split()[7])
-            if line_counter == adsorbate_adsorbate_line:
+            elif line_counter == adsorbate_adsorbate_line:
                 results['ml_adsorbate_adsorbate_avg'] = float(line.split()[1])
                 results['ml_adsorbate_adsorbate_vdw'] = float(line.split()[5])
                 results['ml_adsorbate_adsorbate_cou'] = float(line.split()[7])
-            if line_counter == host_adsorbate_line:
+            elif line_counter == host_adsorbate_line:
                 results['ml_host_adsorbate_avg'] = float(line.split()[1])
                 results['ml_host_adsorbate_vdw'] = float(line.split()[5])
                 results['ml_host_adsorbate_cou'] = float(line.split()[7])
             line_counter += 1
-    
+
     print(
         "\nMETHANE LOADING\tabsolute\texcess\n" +
         "mol/kg\t\t%s\t%s\n" % (results['ml_absolute_molar_loading'], results['ml_excess_molar_loading']) +
         "cc/g\t\t%s\t%s\n"   % (results['ml_absolute_gravimetric_loading'], results['ml_excess_gravimetric_loading']) +
-        "cc/cc\t\t%s\t%s\n"  % (results['ml_absolute_volumetric_loading'], results['ml_excess_volumetric_loading']))
+        "cc/cc\t\t%s\t%s\n"  % (results['ml_absolute_volumetric_loading'], results['ml_excess_volumetric_loading']) +
+        "\nENERGIES\thost-host\tadsorbate-adsorbate\thost-adsorbate\n" +
+        "avg\t\t%s\t\t%s\t\t%s\n" % (results['ml_host_host_avg'], results['ml_adsorbate_adsorbate_avg'], results['ml_host_adsorbate_avg']) +
+        "vdw\t\t%s\t\t%s\t\t%s\n" % (results['ml_host_host_vdw'], results['ml_adsorbate_adsorbate_vdw'], results['ml_host_adsorbate_vdw']) +
+        "cou\t\t%s\t\t%s\t\t\t%s\n" % (results['ml_host_host_cou'], results['ml_adsorbate_adsorbate_cou'], results['ml_host_adsorbate_cou'])
+    )
 
     return results
 
 def run(run_id, material_id, helium_void_fraction):
+    """Runs methane loading simulation.
+
+    Args:
+        run_id (str): identification string for run.
+        material_id (str): unique identifier for material.
+        helium_void_fraction (float): material's calculated void fraction.
+
+    Returns:
+        results (dict): methane loading simulation results.
+
+    """
     simulation_directory  = config['simulations_directory']
     if simulation_directory == 'HTSOHM':
         htsohm_dir = os.path.dirname(os.path.dirname(htsohm.__file__))
@@ -93,15 +134,27 @@ def run(run_id, material_id, helium_void_fraction):
         path = os.environ['SCRATCH']
     else:
         print('OUTPUT DIRECTORY NOT FOUND.')
-    output_dir = os.path.join(path, 'output_%s' % material_id)
+    output_dir = os.path.join(path, 'output_%s_%s' % (material_id, uuid4()))
+    print("Output directory :\t%s" % output_dir)
     os.makedirs(output_dir, exist_ok=True)
     filename = os.path.join(output_dir, "MethaneLoading.input")
     write_raspa_file(filename, run_id, material_id, helium_void_fraction)
-    subprocess.run(['simulate', './MethaneLoading.input'], check=True, cwd=output_dir)
+    while True:
+        try:
+            print("Date :\t%s" % datetime.now().date().isoformat())
+            print("Time :\t%s" % datetime.now().time().isoformat())
+            print("Simulating methane loading in %s-%s..." % (run_id, material_id))
+            subprocess.run(['simulate', './MethaneLoading.input'], check=True, cwd=output_dir)
 
-    filename = "output_%s-%s_1.1.1_298.000000_3.5e+06.data" % (run_id, material_id)
-    output_file = os.path.join(output_dir, 'Output', 'System_0', filename)
-    results = parse_output(output_file)
-    shutil.rmtree(output_dir, ignore_errors=True)
+            filename = "output_%s-%s_1.1.1_298.000000_3.5e+06.data" % (run_id, material_id)
+            output_file = os.path.join(output_dir, 'Output', 'System_0', filename)
+            results = parse_output(output_file)
+            shutil.rmtree(output_dir, ignore_errors=True)
+            sys.stdout.flush()
+        except FileNotFoundError as err:
+            print(err)
+            print(err.args)
+            continue
+        break
 
     return results
