@@ -8,8 +8,8 @@
 #PBS -j oe
 #PBS -N htsohm
 #PBS -q shared
-#PBS -l nodes=1:ppn=20
-#PBS -l walltime=10:00:00
+#PBS -l nodes=1:ppn=5
+#PBS -l walltime=00:05:00
 #PBS -l mem=2GB
 #PBS -S /bin/bash
 
@@ -18,9 +18,11 @@
 # use like `qsub -v stay_alive=1`
 
 run_id = ${input}
+node=`uname -n`
 
 echo JOB_ID: $PBS_JOBID JOB_NAME: $PBS_JOBNAME HOSTNAME: $PBS_O_HOST
 echo start_time: `date`
+echo node: $node
 
 # dependencies
 module purge
@@ -31,7 +33,7 @@ source ~/venv/htsohm/bin/activate
 cd $PBS_O_WORKDIR
 for ((i = 0; i < $PBS_NUM_PPN; i++))
 do
-    ./hts.py launch_worker ${run_id} >> ${run_id}/output_${PBS_O_HOST}_$$_$i.log 2>&1 &
+    ./hts.py launch_worker ${run_id} >> ${run_id}/output_${node}_$$_$i.log 2>&1 &
 done
 
 wait
