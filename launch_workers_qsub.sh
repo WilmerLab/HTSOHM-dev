@@ -33,7 +33,7 @@ source ~/venv/htsohm/bin/activate
 cd $PBS_O_WORKDIR
 for ((i = 0; i < $PBS_NUM_PPN; i++))
 do
-    ./hts.py launch_worker ${run_id} >> ${run_id}/output_${node}_$$_$i.log 2>&1 &
+    ./hts.py launch_worker ${run_id} >> ${run_id}/output_${PBS_O_QUEUE}.${node}_$$_$i.log 2>&1 &
 done
 
 wait
