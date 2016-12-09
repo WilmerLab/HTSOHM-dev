@@ -9,7 +9,7 @@ import htsohm
 from htsohm import config
 
 def write_raspa_file(filename, run_id, material_id, helium_void_fraction ):
-    """Writes RASPA input file for simulating methane loading.
+    """Writes RASPA input file for simulating KRYPTON loading.
 
     Args:
         filename (str): path to input file.
@@ -37,10 +37,10 @@ def write_raspa_file(filename, run_id, material_id, helium_void_fraction ):
             "FrameworkName %s-%s\n" % (run_id, material_id) +
             "UnitCells 1 1 1\n" +
             "HeliumVoidFraction %s\n" % (helium_void_fraction) +
-            "ExternalTemperature 298.0\n" +            # External temperature, K
-            "ExternalPressure 3500000\n" +             # External pressure, Pa
+            "ExternalTemperature 273.0\n" +            # External temperature, K
+            "ExternalPressure 100000\n" +             # External pressure, Pa
             "\n" +
-            "Component 0 MoleculeName\t\tmethane\n" +
+            "Component 0 MoleculeName\t\tkrypton\n" +
             "            MoleculeDefinition\t\tTraPPE\n" +
             "            TranslationProbability\t1.0\n" +
             "            ReinsertionProbability\t1.0\n" +
@@ -102,7 +102,7 @@ def parse_output(output_file):
             line_counter += 1
 
     print(
-        "\nMETHANE LOADING\tabsolute\texcess\n" +
+        "\nKRYPTON LOADING\tabsolute\texcess\n" +
         "mol/kg\t\t%s\t%s\n" % (results['ml_absolute_molar_loading'], results['ml_excess_molar_loading']) +
         "cc/g\t\t%s\t%s\n"   % (results['ml_absolute_gravimetric_loading'], results['ml_excess_gravimetric_loading']) +
         "cc/cc\t\t%s\t%s\n"  % (results['ml_absolute_volumetric_loading'], results['ml_excess_volumetric_loading']) +
@@ -115,7 +115,7 @@ def parse_output(output_file):
     return results
 
 def run(run_id, material_id, helium_void_fraction):
-    """Runs methane loading simulation.
+    """Runs krypton loading simulation.
 
     Args:
         run_id (str): identification string for run.
@@ -123,7 +123,7 @@ def run(run_id, material_id, helium_void_fraction):
         helium_void_fraction (float): material's calculated void fraction.
 
     Returns:
-        results (dict): methane loading simulation results.
+        results (dict): krypton loading simulation results.
 
     """
     simulation_directory  = config['simulations_directory']
@@ -137,14 +137,14 @@ def run(run_id, material_id, helium_void_fraction):
     output_dir = os.path.join(path, 'output_%s_%s' % (material_id, uuid4()))
     print("Output directory :\t%s" % output_dir)
     os.makedirs(output_dir, exist_ok=True)
-    filename = os.path.join(output_dir, "MethaneLoading.input")
+    filename = os.path.join(output_dir, "KryptonLoading.input")
     write_raspa_file(filename, run_id, material_id, helium_void_fraction)
     while True:
         try:
             print("Date :\t%s" % datetime.now().date().isoformat())
             print("Time :\t%s" % datetime.now().time().isoformat())
-            print("Simulating methane loading in %s-%s..." % (run_id, material_id))
-            subprocess.run(['simulate', './MethaneLoading.input'], check=True, cwd=output_dir)
+            print("Simulating krypton loading in %s-%s..." % (run_id, material_id))
+            subprocess.run(['simulate', './KryptonLoading.input'], check=True, cwd=output_dir)
 
             filename = "output_%s-%s_1.1.1_298.000000_3.5e+06.data" % (run_id, material_id)
             output_file = os.path.join(output_dir, 'Output', 'System_0', filename)
