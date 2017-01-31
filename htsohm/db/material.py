@@ -240,7 +240,7 @@ class Material(Base):
 
         print('GL DEV\t%s' % (ga_mean - ga_o))
         print('SA DEV\t%s' % (sa_mean - sa_o))
-        print('VF DEV\t%s' % (vf_mean - vf_o))
+        print('VF DEV\t%s' % (vf_mean - vf_o)) 
 
         retest_failed = (
             abs(ga_mean - ga_o) >= tolerance * ga_width and ga_o != 0 or
