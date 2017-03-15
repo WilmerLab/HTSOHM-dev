@@ -5,10 +5,14 @@ from datetime import datetime
 import numpy as np
 from sqlalchemy.sql import func, or_
 from sqlalchemy.orm.exc import FlushError
+import sqlalchemy.exc
+from uuid import uuid4
 
 from htsohm import config
 from htsohm.db import session, Material, MutationStrength
-from htsohm.material_files import write_seed_definition_files, write_child_definition_files
+from htsohm.material_files import generate_material, mutate_material
+from htsohm.material_files import load_material_from_yaml
+from htsohm.material_files import dump_material_to_yaml
 from htsohm import simulation
 
 def materials_in_generation(run_id, generation):
@@ -138,6 +142,7 @@ def run_all_simulations(material):
     corresponding bins to row in database corresponding to the input-material.
         
     """
+
     simulations = config['material_properties']
 
     ############################################################################
@@ -154,18 +159,31 @@ def run_all_simulations(material):
         material.void_fraction_bin = 0
     ############################################################################
     # run gas loading simulation
-    if 'gas_adsorption' in simulations:
+    if 'gas_adsorption_0' in simulations and 'gas_adsorption_1' not in simulations:
         arguments = [material.run_id, material.uuid]
         if 'helium_void_fraction' in simulations:
             arguments.append(material.vf_helium_void_fraction)
-        results = simulation.gas_adsorption.run(*arguments)
+        results = simulation.gas_adsorption_0.run(*arguments)
         material.update_from_dict(results)
         material.gas_adsorption_bin = calc_bin(
-            material.ga_absolute_volumetric_loading,
-            *config['gas_adsorption']['limits'],
+            material.ga0_absolute_volumetric_loading,
+            *config['gas_adsorption_0']['limits'],
             config['number_of_convergence_bins']
         )
-    else:
+    elif 'gas_adsorption_0' in simulations and 'gas_adsorption_1' in simulations:
+        arguments = [material.run_id, material.uuid]
+        if 'helium_void_fraction' in simulations:
+            arguments.append(material.vf_helium_void_fraction)
+        results = simulation.gas_adsorption_0.run(*arguments)
+        material.update_from_dict(results)
+        results = simulation.gas_adsorption_1.run(*arguments)
+        material.update_from_dict(results)
+        material.gas_adsorption_bin = calc_bin(
+            abs(material.ga0_absolute_volumetric_loading - material.ga1_absolute_volumetric_loading),
+            *config['gas_adsorption_0']['limits'],
+            config['number_of_convergence_bins']
+        )
+    elif 'gas_adsorption_0' not in simulations:
         material.gas_adsorption_bin = 0
     ############################################################################
     # run surface area simulation
@@ -193,7 +211,9 @@ def retest(m_orig, retests, tolerance):
     Updates row in database with total number of retests and results.
 
     """
-    m = m_orig.clone()
+    m = m_orig.clone(m_orig.uuid)
+    print('\n\nRETEST_NUM :\t%s' % m_orig.retest_num)
+    print('retests :\t%s' % retests)
     run_all_simulations(m)
 
     simulations = config['material_properties']
@@ -202,16 +222,23 @@ def retest(m_orig, retests, tolerance):
     # if the row is presently locked, this method blocks until the row lock is released
     session.refresh(m_orig, lockmode='update')
     if m_orig.retest_num < retests:
-        if 'gas_adsorption' in simulations:
-            m_orig.retest_gas_adsorption_sum += m.ga_absolute_volumetric_loading
+        if 'gas_adsorption_0' in simulations:
+            m_orig.retest_gas_adsorption_0_sum += m.ga0_absolute_volumetric_loading
+        if 'gas_adsorption_1' in simulations:
+            m_orig.retest_gas_adsorption_1_sum += m.ga1_absolute_volumetric_loading
         if 'surface_area' in simulations:
             m_orig.retest_surface_area_sum += m.sa_volumetric_surface_area
         if 'helium_void_fraction' in simulations:
             m_orig.retest_void_fraction_sum += m.vf_helium_void_fraction
         m_orig.retest_num += 1
+        session.commit()        
 
         if m_orig.retest_num == retests:
-            m_orig.retest_passed = m.calculate_retest_result(tolerance)
+            try:
+                m_orig.retest_passed = m.calculate_retest_result(tolerance)
+                print('\nRETEST_PASSED :\t%s' % m_orig.retest_passed)
+            except ZeroDivisionError as e:
+                print('WARNING: ZeroDivisionError - material.calculate_retest_result(tolerance)')
 
     else:
         pass
@@ -244,7 +271,7 @@ def mutate(run_id, generation, parent):
         print("Mutation strength already calculated for this bin and generation.")
     else:
         print("Calculating mutation strength...")
-        mutation_strength = MutationStrength.get_prior(*mutation_strength_key).clone()
+        mutation_strength = MutationStrength.get_prior(*mutation_strength_key).clone(uuid4())
         mutation_strength.generation = generation
 
         try:
@@ -259,8 +286,9 @@ def mutate(run_id, generation, parent):
         try:
             session.add(mutation_strength)
             session.commit()
-        except FlushError as e:
+        except (FlushError, sqlalchemy.exc.IntegrityError) as e:
             print("Somebody beat us to saving a row with this generation. That's ok!")
+            session.rollback()
             # it's ok b/c this calculation should always yield the exact same result!
     sys.stdout.flush()
     return mutation_strength.strength
@@ -317,7 +345,8 @@ def worker_run_loop(run_id):
         while materials_in_generation(run_id, gen) < size_of_generation:
             if gen == 0:
                 print("writing new seed...")
-                material = write_seed_definition_files(run_id, config['number_of_atom_types'])
+                material = generate_material(run_id, config)
+                dump_material_to_yaml(run_id, material)
             else:
                 print("selecting a parent / running retests on parent / mutating / simulating")
                 parent_id = select_parent(run_id, max_generation=(gen - 1),
@@ -336,20 +365,29 @@ def worker_run_loop(run_id):
                 if not parent.retest_passed:
                     print("parent failed retest. restarting with parent selection.")
                     continue
-
+                
+                # mutate parent_material
                 mutation_strength = mutate(run_id, gen, parent)
-                material = write_child_definition_files(run_id, parent_id, gen, mutation_strength)
+                parent_material = load_material_from_yaml(run_id, parent.uuid)
+                material = mutate_material(parent_material,
+                        mutation_strength, config)
+                dump_material_to_yaml(run_id, material)
 
-            run_all_simulations(material)
-            session.add(material)
+            # create record, run simulations
+            material_record = Material(material.uuid, run_id)
+            material_record.generation = gen
+            if gen != 0:
+                material_record.parent_id = parent_id
+            run_all_simulations(material_record)
+            session.add(material_record)
             session.commit()
 
-            material.generation_index = material.calculate_generation_index()
-            if material.generation_index < config['children_per_generation']:
-                session.add(material)
+            material_record.generation_index = material_record.calculate_generation_index()
+            if material_record.generation_index < config['children_per_generation']:
+                session.add(material_record)
             else:
                 # delete excess rows
-                # session.delete(material)
+                session.delete(material_record)
                 pass
             session.commit()
             sys.stdout.flush()
