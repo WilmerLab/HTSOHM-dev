@@ -21,12 +21,12 @@ def write_raspa_file(filename, uuid, helium_void_fraction=None):
     Writes RASPA input-file.
 
     """
-    simulation_cycles      = config['gas_adsorption_0']['simulation_cycles']
-    initialization_cycles  = config['gas_adsorption_0']['initialization_cycles']
-    external_temperature   = config['gas_adsorption_0']['external_temperature']
-    external_pressure      = config['gas_adsorption_0']['external_pressure']
-    adsorbate              = config['gas_adsorption_0']['adsorbate']
-       
+    simulation_cycles      = config['gas_adsorption_1']['simulation_cycles']
+    initialization_cycles  = config['gas_adsorption_1']['initialization_cycles']
+    external_temperature   = config['gas_adsorption_1']['external_temperature']
+    external_pressure      = config['gas_adsorption_1']['external_pressure']
+    adsorbate              = config['gas_adsorption_1']['adsorbate']
+      
     with open(filename, "w") as raspa_input_file:
         raspa_input_file.write(
             "SimulationType                 MonteCarlo\n" +
@@ -110,7 +110,7 @@ def parse_output(output_file):
                 results['ga1_host_adsorbate_cou'] = float(line.split()[7])
             line_counter += 1
 
-    adsorbate = config['gas_adsorption_0']['adsorbate']
+    adsorbate = config['gas_adsorption_1']['adsorbate']
     print(
         "\n%s ADSORPTION\tabsolute\texcess\n" % adsorbate +
         "mol/kg\t\t\t%s\t%s\n" % (results['ga1_absolute_molar_loading'], results['ga1_excess_molar_loading']) +
@@ -124,7 +124,7 @@ def parse_output(output_file):
 
     return results
 
-def run(run_id, pseudo_material, helium_void_fraction=None):
+def run(run_id, material, helium_void_fraction=None):
     """Runs gas loading simulation.
 
     Args:
@@ -136,7 +136,7 @@ def run(run_id, pseudo_material, helium_void_fraction=None):
         results (dict): gas loading simulation results.
 
     """
-    adsorbate             = config['gas_adsorption_0']['adsorbate']
+    adsorbate             = config['gas_adsorption_1']['adsorbate']
     simulation_directory  = config['simulations_directory']
     if simulation_directory == 'HTSOHM':
         htsohm_dir = os.path.dirname(os.path.dirname(htsohm.__file__))
@@ -145,18 +145,18 @@ def run(run_id, pseudo_material, helium_void_fraction=None):
         path = os.environ['SCRATCH']
     else:
         print('OUTPUT DIRECTORY NOT FOUND.')
-    output_dir = os.path.join(path, 'output_%s_%s' % (pseudo_material.uuid, uuid4()))
+    output_dir = os.path.join(path, 'output_%s_%s' % (material.uuid, uuid4()))
     print('Output directory :\t%s' % output_dir)
     os.makedirs(output_dir, exist_ok=True)
     filename = os.path.join(output_dir, '%s_loading.input' % adsorbate)
-    write_raspa_file(filename, pseudo_material.uuid, helium_void_fraction)
-    write_cif_file(pseudo_material, output_dir)
-    write_mixing_rules(pseudo_material, output_dir)
-    write_pseudo_atoms(pseudo_material, output_dir)
+    write_raspa_file(filename, material.uuid, helium_void_fraction)
+    write_cif_file(material, output_dir)
+    write_mixing_rules(material, output_dir)
+    write_pseudo_atoms(material, output_dir)
     write_force_field(output_dir)
     print("Date :\t%s" % datetime.now().date().isoformat())
     print("Time :\t%s" % datetime.now().time().isoformat())
-    print("Simulating %s loading in %s..." % (adsorbate, pseudo_material.uuid))
+    print("Simulating %s loading in %s..." % (adsorbate, material.uuid))
     while True:
         try:
             subprocess.run(
@@ -165,7 +165,7 @@ def run(run_id, pseudo_material, helium_void_fraction=None):
                 cwd = output_dir
             )
         
-            file_name_part = "output_%s" % (pseudo_material.uuid)
+            file_name_part = "output_%s" % (material.uuid)
             output_subdir = os.path.join(output_dir, 'Output', 'System_0')
             for file in os.listdir(output_subdir):
                 if file_name_part in file:
