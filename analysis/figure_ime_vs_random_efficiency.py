@@ -31,7 +31,7 @@ def figure_ime_vs_random_efficiency():
         # ax.axes.yaxis.set_visible(False)
         ax.set_xticks([0, 25000, 50000, 100000, 150000])
         ax.axes.xaxis.set_ticklabels(["0", "25K", "50K", "450K", "500K"])
-        ax.grid(linestyle='-', color='0.8', zorder=0, axis="x")
+        ax.grid(linestyle='-', color='0.8', zorder=0, axis="both", lw=1)
         # ax.axhline(1600, linestyle="--", lw=2, color="black", label=0)
         for path in csv_paths:
             df[path] = pd.read_csv(path, usecols=["unique_bins"])
@@ -42,20 +42,18 @@ def figure_ime_vs_random_efficiency():
 
     ax = fig.add_subplot(1, 1, 1)
     ax.set_ylabel("Bins Explored")
-    legend_labels = ["IME", "Random"]
+    legend_labels = ["IME", "Random Generation"]
     g1 = setup_plot(["reference.csv", "random16_500K.csv"])
     ax.plot(g1.num, g1["reference.csv"], lw=1.5, color="black", zorder=10)
     ax.plot(g1.num[0:50000], g1["random16_500K.csv"][0:50000], lw=1.5, color="orange", zorder=10)
     ax.plot(g1.num[100000:150000], g1["random16_500K.csv"][450000:500000], lw=1.5, color="orange", zorder=10)
-    ax.plot([50000, 100000],[541, 730], lw=1.5, color="orange", linestyle="--", zorder=10)
+    # ax.plot([50000, 100000],[541, 730], lw=1.5, color="orange", linestyle="--", zorder=10)
     # ax.legend(legend_labels, bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0., facecolor='white', framealpha=1)
     ax.legend(legend_labels, loc='upper right', facecolor='white', framealpha=1)
 
-
-
-    ax.axhline(468, lw=1.0, linestyle="--", color="grey", zorder=1)
-    ax.axhline(732, lw=1.0, linestyle="--", color="grey", zorder=1)
-    ax.axhline(1062, lw=1.0, linestyle="--", color="grey", zorder=1)
+    # ax.axhline(468, lw=1.0, linestyle="--", color="grey", zorder=1)
+    # ax.axhline(732, lw=1.0, linestyle="--", color="grey", zorder=1)
+    # ax.axhline(1062, lw=1.0, linestyle="--", color="grey", zorder=1)
 
     arrow_args = dict(arrowstyle="->")
     ax.annotate("732 bins @ 494956", xy=(494956 - 350000, 732), xycoords="data",
