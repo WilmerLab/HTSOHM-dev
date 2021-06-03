@@ -1,4 +1,4 @@
-#htsohm
+# htsohm
 
 Branch Status: [![Build Status](https://travis-ci.org/WilmerLab/HTSOHM-dev.svg?branch=comprehensive_exploration_methane)](https://travis-ci.org/WilmerLab/HTSOHM-dev)
 
