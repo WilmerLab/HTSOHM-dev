@@ -1,6 +1,6 @@
 # htsohm
 
-Branch Status: [![Build Status](https://travis-ci.org/WilmerLab/HTSOHM-dev.svg?branch=comprehensive_exploration_methane)](https://travis-ci.org/WilmerLab/HTSOHM-dev)
+Branch Status: [![Build Status](https://travis-ci.org/WilmerLab/htsohm.svg?branch=comprehensive_exploration_methane)](https://travis-ci.org/WilmerLab/htsohm)
 
 This software runs iterative mutation exploration or IME, as described by our paper preliminarily
 titled "Towards Comprehensive Exploration of the Physisorption Space in Porous Pseudomaterials
