@@ -1,19 +1,10 @@
-from htsohm import config
-from htsohm import simulation
 
-def get_simulation(simulation_type):
-    if  simulation_type == 'gas_adsorption_0':
-        return simulation.gas_adsorption_0
-    elif  simulation_type == 'gas_adsorption_1':
-        return simulation.gas_adsorption_1
-    elif simulation_type == 'surface_area':
-        return simulation.surface_area
-    elif simulation_type == 'void_fraction':
-        return simulation.void_fraction
-    else:
-        raise Exception('Simulation-type not found!')
+from datetime import datetime
 
-def run_all_simulations(material, structure):
+from htsohm.simulation import simulate
+from htsohm.slog import slog
+
+def run_all_simulations(material, config):
     """Simulate helium void fraction, gas loading, and surface area.
 
     Args:
@@ -22,11 +13,14 @@ def run_all_simulations(material, structure):
     Depending on properties specified in config, adds simulated data for helium
     void fraction, gas loading, heat of adsorption, surface area, and
     corresponding bins to row in database corresponding to the input-material.
-        
     """
+    slog("-----------------------------------------------")
     for simulation_number in config["simulations"]:
+
         simulation_config = config["simulations"][simulation_number]
-        getattr(simulation, simulation_config["type"]).run(material, structure, simulation_config)
-        #material.update_from_dict(results)
+        slog('Time             : {:%Y-%m-%d %H:%M:%S}'.format(datetime.now()))
+        slog("Simulation type  : {}".format(simulation_config["type"]))
+        getattr(simulate, simulation_config["type"]).run(material, simulation_config, config)
+        slog("--")
 
-
+    slog('{:%Y-%m-%d %H:%M:%S}'.format(datetime.now()))

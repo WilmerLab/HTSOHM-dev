@@ -1,29 +1,68 @@
+from datetime import datetime
+from glob import glob
 import os
+from shutil import copy2
+import sys
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import yaml
 
-# Init the database
-with open(os.path.join('settings', 'database.yaml'), 'r') as yaml_file:
-    dbconfig = yaml.load(yaml_file)
-connection_string = dbconfig['connection_string']
-if 'sqlite' in connection_string:
-    print(
-        'WARNING: attempting to use SQLite database! Okay for local debugging\n' +
-        'but will not work with multiple workers, due to lack of locking features.'
-    )
-engine = create_engine(connection_string)
-session = sessionmaker(bind=engine)()
+__engine__ = None
+__session__ = None
+
+def get_session():
+    return __session__
+
+def get_engine():
+    return __engine__
+
+def get_sqlite_dbcs(database_path=None):
+    if database_path is None:
+        dbs = glob("*.db")
+        if len(dbs) == 0:
+            raise FileNotFoundError("Cannot find sqlite DBCS in the current directory: %s" % os.getcwd())
+        elif len(dbs) > 1:
+            print("WARNING: more than one *.db file found in this directory. Using first one: %s" % dbs[0])
+        database_path = dbs[0]
+    return "sqlite:///%s" % database_path
+
+def init_database(connection_string, backup=False):
+    global __engine__
+    global __session__
+
+    if connection_string[0:10] == "sqlite:///":
+        db_path = connection_string[10:]
+        if backup and os.path.exists(db_path):
+            backup_path = db_path + "." + datetime.now().isoformat() + ".backup"
+            copy2(db_path, backup_path)
+            print("backing up prexisting database file %s to %s" % (db_path, backup_path))
+
+    __engine__ = create_engine(connection_string)
+    __session__ = sessionmaker(bind=__engine__)()
+
+    # Create tables in the engine, if they don't exist already.
+    Base.metadata.create_all(__engine__)
+    Base.metadata.bind = __engine__
+
+    return __engine__, __session__
 
 # Import all models
 from htsohm.db.base import Base
+from htsohm.db.atom_sites import AtomSite
+from htsohm.db.atom_types import AtomTypes
 from htsohm.db.gas_loading import GasLoading
 from htsohm.db.surface_area import SurfaceArea
 from htsohm.db.void_fraction import VoidFraction
 from htsohm.db.material import Material
+from htsohm.db.structure import Structure
 
-# Create tables in the engine, if they don't exist already.
-Base.metadata.create_all(engine)
-Base.metadata.bind = engine
+def delete_extra_materials(delete_after_id):
+    __engine__.execute("delete from materials where id > %d" % delete_after_id)
+    __engine__.execute("delete from gas_loadings where material_id > %d" % delete_after_id)
+    __engine__.execute("delete from surface_areas where material_id > %d" % delete_after_id)
+    __engine__.execute("delete from void_fractions where material_id > %d" % delete_after_id)
+    __engine__.execute("delete from structures where material_id > %d" % delete_after_id)
+    __engine__.execute("delete from atom_types where structure_id > %d" % delete_after_id)
+    __engine__.execute("delete from atom_sites where structure_id > %d" % delete_after_id)

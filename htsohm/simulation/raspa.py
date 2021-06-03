@@ -1,43 +1,38 @@
 import os
 
-def write_mol_file(material, structure, simulation_path):
+def write_mol_file(material, simulation_path):
     """Writes .mol file for structural information."""
-    file_name = os.path.join(simulation_path, "{}.mol".format(material.seed))
+
+    s = material.structure
+
+    file_name = os.path.join(simulation_path, "{}.mol".format(material.uuid))
     with open(file_name, "w") as mol_file:
         mol_file.write(
-                " Molecule_name: {}\n".format(material.seed) +
+                " Molecule_name: {}\n".format(material.uuid) +
                 "\n" +
                 "  Coord_Info: Listed Cartesian None\n" +
-                "        {}\n".format(structure.n()))
-        for i in range(structure.n()):
-            a = structure.atom_sites[i]
+                "        {}\n".format(len(s.atom_sites)))
+        for i in range(len(s.atom_sites)):
+            a = s.atom_sites[i]
             mol_file.write(
                     "{:6} {:10.4f} {:10.4f} {:10.4f}  {:5} {:10.8f}  0  0\n".format(
-                        i + 1, round(structure.atom_sites[i].x * structure.lattice_constants.a, 4),
-                        round(structure.atom_sites[i].y * structure.lattice_constants.b, 4),
-                        round(structure.atom_sites[i].z * structure.lattice_constants.c, 4),
-                        structure.atom_sites[i].chemical_id, round(structure.atom_sites[i].q, 8)))
+                        i + 1, round(a.x * s.a, 4), round(a.y * s.b, 4), round(a.z * s.c, 4),
+                        str(a.atom_types.atom_type_index()), round(a.q, 8)))
         mol_file.write(
                 "\n" +
                 "\n" +
                 "\n" +
                 "  Fundcell_Info: Listed\n" +
                 "        {:10.4f}       {:10.4f}       {:10.4f}\n".format(
-                    round(structure.lattice_constants.a, 4),
-                    round(structure.lattice_constants.b, 4),
-                    round(structure.lattice_constants.c, 4)) +
+                    round(s.a, 4), round(s.b, 4), round(s.c, 4)) +
                 "           90.0000          90.0000          90.0000\n" +
                 "           0.00000          0.00000          0.00000\n" +
                 "        {:10.4f}       {:10.4f}       {:10.4f}\n".format(
-                    round(structure.lattice_constants.a, 4),
-                    round(structure.lattice_constants.b, 4),
-                    round(structure.lattice_constants.c, 4)) +
+                    round(s.a, 4), round(s.b, 4), round(s.c, 4)) +
                 "\n")
 
 def write_mixing_rules(structure, simulation_path):
-    """Writes .def file for forcefield information.
-
-    """
+    """Writes .def file for forcefield information."""
     adsorbate_LJ_atoms = [
             ['N_n2',    36.0,       3.31],
             ['C_co2',   27.0,       2.80],
@@ -48,7 +43,7 @@ def write_mixing_rules(structure, simulation_path):
             ['Kr',      167.06,     3.924],
             ['Xe',      110.704,    3.690]
     ]
- 
+
     adsorbate_none_atoms = ['N_com', 'H_h2']
 
     file_name = os.path.join(simulation_path, 'force_field_mixing_rules.def')
@@ -66,7 +61,7 @@ def write_mixing_rules(structure, simulation_path):
         )
         for lj in structure.atom_types:
             mixing_rules_file.write(
-                "{0:12} lennard-jones {1:8f} {2:8f}\n".format(lj.chemical_id,
+                "{0:12} lennard-jones {1:8f} {2:8f}\n".format(lj.atom_type_index(),
                     round(lj.epsilon, 4), round(lj.sigma, 4)))
         for at in adsorbate_LJ_atoms:
             mixing_rules_file.write(
@@ -84,20 +79,9 @@ def write_pseudo_atoms(structure, simulation_path):
     """Writes .def file for chemical information.
 
     Args:
-        file_name (str): path to pseudo atoms definitions file, for example:
-            `$(raspa-dir)/forcefield/(run_id)-(uuid)/pseudo_atoms.def`
-        atom_types (list): dictionaries for each chemical species, including
-            an identification string and charge, for example:
-            interactions, for example:
-            {"chemical-id" : chemical_ids[i],
-             "charge"      : 0.,
-             "epsilon"     : epsilon,
-             "sigma"       : sigma}
+        simulation_path (str): path to pseudo atoms definitions file
 
     Returns:
-        Writes file within RASPA's library,
-        `$(raspa-dir)/forcefield/(run_id)-(uuid)/pseudo_atoms.def`
-
         NOTE: ALL CHARGES ARE 0. IN THIS VERSION.
 
     """
@@ -113,7 +97,7 @@ def write_pseudo_atoms(structure, simulation_path):
         for a in structure.atom_types:
             pseudo_atoms_file.write(
                 "{0:7}  yes  C   C   0   12.0       0.0  0.0  1.0  1.0    0  0  absolute  0\n".format(
-                    a.chemical_id))
+                    str(a.atom_type_index())))
         pseudo_atoms_file.write(
             "N_n2     yes  N   N   0   14.00674   -0.4048   0.0  1.0  0.7    0  0  relative  0\n" +
             "N_com    no   N   -   0    0.0        0.8096   0.0  1.0  0.7    0  0  relative  0\n" +
@@ -131,11 +115,7 @@ def write_force_field(simulation_path):
     """Writes .def file to overwrite LJ-type interactions.
 
     Args:
-        file_name (str): path to .def-file, for example:
-            `$(raspa-dir)/forcefield/(run_id)-(uuid)/force_field.def`
-
-    Writes file within RASPA's library:
-        `$(raspa-dir)/forcefield/(run_id)-(uuid)/force_field.def`
+        file_name (str): path to write .def-file
 
     NOTE: NO INTERACTIONS ARE OVERWRITTEN BY DEFAULT.
 

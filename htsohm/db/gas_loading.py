@@ -16,21 +16,6 @@ class GasLoading(Base):
     temperature    = Column(Float)
 
     # simulation output
+    cycles                           = Column(Integer)
     absolute_volumetric_loading      = Column(Float)
-    absolute_gravimetric_loading     = Column(Float)
-    absolute_molar_loading           = Column(Float)
-    excess_volumetric_loading        = Column(Float)
-    excess_gravimetric_loading       = Column(Float)
-    excess_molar_loading             = Column(Float)
-    host_host_avg                    = Column(Float)
-    host_host_vdw                    = Column(Float)
-    host_host_cou                    = Column(Float) 
-    adsorbate_adsorbate_avg          = Column(Float)
-    adsorbate_adsorbate_vdw          = Column(Float)
-    adsorbate_adsorbate_cou          = Column(Float)
-    host_adsorbate_avg               = Column(Float)
-    host_adsorbate_vdw               = Column(Float)
-    host_adsorbate_cou               = Column(Float)
-
-    # bin
-    bin_value = Column(Integer)
+    absolute_volumetric_loading_error = Column(Float)
